@@ -1,0 +1,1017 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Estimate parameters for year 2006
+% Panle Jia 5/21/08
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% estimation replication 
+% Tong
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+clear
+format short g
+
+% Parameters to be adjusted depending on the model
+ntype=2;            
+ncoef=3;
+yr=2006;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Part One: Data
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+load M130_MkDist    %ProdID,MkDist,SmDist,MdDist,LgDist
+data=sortrows(data,1);  %sort by ProdID
+SmDist=data(:,3); MdDist=data(:,4); LgDist=data(:,5);
+SmMdDist=SmDist+MdDist; clear SmDist MdDist
+
+%%% 'data' in M100_db1b.mat contains the following fields:
+% MkID CarrID ProdSh BinFare NoConn 
+% dept Hub Hubdest Dist NumDest 
+% NdestEnd FLLAS NoRoute HubConn Slot 
+% NoCarr NoLcc AvgPop Phat PassOrg
+% PassDest CarrOrgSh CarrDestSh CityOrg CityDest
+% Avr_Direct Avr_Hub Avr_Hubdest deptalt P25
+% P75	SeatT CommT Del_15 Del_30
+% DumLcc DirHat ConnHat ProdID;
+load M100_db1b           
+nJ=nJ(:,2);
+
+data=sortrows(data,39);    %Sort by MkID, CarrID, ProdID
+s_jm=data(:,3);
+nconn=data(:,5);
+dept=data(:,29)/90;   %alternative dept 
+dirIV=data(:,37)/90;
+connIV=data(:,38)/90;
+deptIV=(nconn==0).*dirIV+(nconn==2).*connIV;
+
+fare25=data(:,30)/100;
+fare75=data(:,31)/100;
+
+%%% Carrier Dummies
+CarrID=data(:,2);
+AA= (CarrID==1);
+B6= (CarrID==4);
+CO= (CarrID==5);
+DL= (CarrID==6);
+NW= (CarrID==11);
+UA= (CarrID==15);
+US= (CarrID==16);
+WN= (CarrID==17);
+OT= (CarrID~=1 &CarrID~=4 &CarrID~=5 &CarrID~=6 &CarrID~=11 &CarrID~=15 &CarrID~=16 &CarrID~=17);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Part Two: IV
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+fare=data(:,4)/100;        %in hund 
+dist=data(:,9)/1000;      %in thou of miles
+dist2=dist.^2;
+hub=data(:,7); hubdest=data(:,8);
+ndest=data(:,10)/100;      %in hund of connected cities
+ndestend=data(:,11)/100;
+hubconn=data(:,14);
+lcc=data(:,36); 
+tour=data(:,12);           %tour is dummy for FL / LAS
+slot=data(:,15); pop=data(:,18)/1000000; 
+nrout=data(:,13); nocarr=data(:,16); 
+adir=data(:,26); 
+
+slotMC= (slot>0);
+hubMC= (hub+hubdest+hubconn)>0;
+
+% Demand IV
+IV1=[ones(nobs,1),dist,nconn,ndest,ndestend, hub,hubdest,lcc,...   
+    tour,slot,pop,nrout,nocarr,...     
+    hubconn,...
+    dist.*ndest, dist.*ndestend, dist.*lcc,... 
+    dist.*tour, dist.*pop, ...
+    nconn.*ndest, nconn.*tour, nconn.*pop, ...
+    nconn.*nrout,  ...
+    ndest.*lcc,  ndest.*pop, ndest.*nrout,...
+    lcc.*tour, lcc.*pop,...
+    tour.*nrout, tour.*pop, slot.*nrout,  pop.*nrout,  ...
+    adir.*dist, adir.*nconn,  adir.*ndest, adir.*hubdest,...
+    dist.*slot, nconn.*slot, ndest.*slot,ndestend.*slot, slot.*pop, ...
+    fare25, fare75,OT,CO,DL,NW,UA,US,WN,...
+    ndestend.*nconn, ndestend.*ndest, ndestend.*hub,ndestend.*lcc,...
+    ndestend.*tour,ndestend.*pop,ndestend.*nrout,ndestend.*adir,...
+    deptIV, deptIV.*ndestend, deptIV.*dist];
+
+% Supply IV
+IV2=[ndest,ndestend,hub,hubdest,lcc,...   
+    tour,slot,pop,nrout,nocarr,...
+     dist.*ndest, dist.*ndestend, dist.*lcc,... 
+    dist.*tour, dist.*pop, ...
+     nconn.*ndest, nconn.*lcc, nconn.*tour, nconn.*pop, ...
+    nconn.*nrout,  ...
+    ndest.*lcc,  ndest.*pop, ndest.*nrout,...
+    lcc.*tour, lcc.*pop,...
+    tour.*nrout, tour.*pop, slot.*nrout,  pop.*nrout,...
+    dist.*slot, nconn.*slot, ndest.*slot,ndestend.*slot, slot.*pop,...
+    fare25, fare75,OT,CO,DL,NW,UA,US,WN,...
+    ndestend.*nconn, ndestend.*ndest, ndestend.*hub,ndestend.*lcc,...
+    ndestend.*tour,ndestend.*pop,ndestend.*nrout,ndestend.*adir,...
+    deptIV, deptIV.*ndestend, deptIV.*dist,slotMC,hubMC,...
+    ones(nobs,1).*SmMdDist, dist.*SmMdDist, nconn.*SmMdDist,...
+    ones(nobs,1).*LgDist, dist.*LgDist, nconn.*LgDist];
+
+invA1 = inv(IV1'*IV1);     
+invA2 = inv(IV2'*IV2);    
+
+corrIV1=corr(IV1(:,2:end));
+for i=1:size(IV1,2)-1
+    corrIV1(i,i:end)=0;
+    corrIV1(i,1:i-1)=corrIV1(i,1:i-1).*(abs(corrIV1(i,1:i-1))>0.85);
+end;
+display('max corr')
+max corr
+max(abs(corrIV1))'
+
+ans =
+
+            0
+            0
+      0.87794
+      0.90836
+            0
+            0
+      0.88442
+      0.90114
+      0.86889
+            0
+       0.9125
+            0
+            0
+            0
+       0.8707
+            0
+      0.88529
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+      0.88635
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+
+display('mean IV1')
+mean IV1
+mean(IV1)'
+
+ans =
+
+            1
+       2.7767
+       1.1429
+      0.19389
+      0.17868
+      0.15763
+      0.14036
+      0.18657
+      0.13099
+      0.35367
+       3.6038
+       6.1352
+       4.4542
+      0.46166
+      0.45438
+      0.42124
+      0.50483
+      0.38739
+       10.346
+     0.089302
+      0.16043
+       3.6127
+       7.8756
+      0.00854
+      0.79127
+       1.0315
+     0.030159
+      0.67162
+      0.96537
+      0.42612
+       2.3078
+       22.255
+      0.54031
+      0.20411
+     0.063895
+     0.043016
+       1.0053
+      0.42467
+     0.087005
+     0.066955
+       1.7907
+       2.8252
+        5.578
+      0.10662
+      0.08405
+      0.15288
+     0.084739
+      0.13549
+      0.14846
+     0.090641
+     0.083701
+     0.024292
+     0.016121
+    0.0082703
+     0.015472
+      0.72798
+       1.0096
+     0.054965
+       4.1534
+      0.91166
+       10.401
+
+
+corrIV2=corr(IV2(:,2:end));
+for i=1:size(IV2,2)-1
+    corrIV2(i,i:end)=0;
+    corrIV2(i,1:i-1)=corrIV2(i,1:i-1).*(abs(corrIV2(i,1:i-1))>0.85);
+end;
+display('max corr')
+max corr
+max(abs(corrIV2))'
+
+ans =
+
+      0.90836
+            0
+            0
+      0.88442
+      0.90114
+      0.92918
+            0
+       0.9125
+            0
+            0
+       0.8707
+            0
+      0.88529
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            0
+            1
+            0
+            0
+      0.97862
+            0
+            0
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Part Three: first stage estimation
+% Theta=[alpha1,layover1, alpha2,layover2, 
+% alpha3,layover3,
+% const, ndest, dept, dist,dist2, tour, slot,
+% OT,B6,CO,DL,NW,UA,US,WN
+% cost_const, cost_dist, cost_layover, cost_lcc, lambda, gamma1, gamm2];
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+theta0=[-0.942682104142090;-0.604539496550158;-6.00805822204041;-0.0938823173238298;-0.554825006228195;-8.91769138059189;0.267240103856126;0.110578136185204;0.512019372128040;-0.0775887159476948;0.395400127008418;-0.199709503628035;0.0784365751453704;0.447290565282301;0.0412530767886149;-0.219831799288678;0.0955608695060965;0.0709122737035883;0.0752477586604947;0.108152680634227;1.00676949929228;0.176647335633860;0.0810351688753235;1.40774437986201;0.0518240930242996;0.0535865547079051;-0.0509479293358409;0.00802671336972054;-0.166159188421474;-0.223566715371866;-0.151439301997620;-0.140108254547626;-0.0404793462828491;-0.0390045914247194;-0.0646696491322503;-0.141064041976670;0.742563699963633;0.544665953084210;];
+lb=[-3;-3;-10;-3;-3;-10;
+    -2*ones(6,1);
+    -ones(8,1);
+    -ones(8,1);
+    -ones(8,1);
+    0.1; 0.01];
+ub=[-0.001;-0.001; -2; -0.001;-0.001; -2; 
+    1; 0.5; 1; 0.5; 1; 0.1;
+    ones(8,1);
+    3;1;1;4;1;1; 1;1;
+    ones(8,1);
+    0.95;0.95];
+% A and b are linear constraints
+A=[]; b=[];
+
+% use fmincon to refine the search
+options=optimset('Display','iter','MaxIter',1000,'MaxFunEvals',1000,'GradObj','on',...
+    'DiffMinChange',1e-6,'DerivativeCheck','off'); %%has to turn off
+XMat=[fare,nconn, ones(nobs,1),ndest, dept, dist,dist2, tour,slot, OT,B6,CO,DL,NW,UA,US,WN,...
+    ones(nobs,1).*SmMdDist, dist.*SmMdDist, nconn.*SmMdDist,...
+    ones(nobs,1).*LgDist, dist.*LgDist, nconn.*LgDist, hubMC,slotMC];
+dM.MidxL=[0;Midx]; dM.Mid=Mid; 
+dM.CidxL=[0;Cidx]; 
+%%%%****** IMPORTANT: DM.CIDX2 ***********%%%%
+dM.Cidx2=nJC(:,1);      %MkID for each Mk/Carr combination
+dM.s_jm=s_jm; 
+dM.xiold=zeros(nobs,1); 
+dM.tol=1e-12;    %tighter criterion for xi inversion than fmincon (outside loop)
+dM.nM=nM; dM.nC=nC; dM.nobs=nobs; 
+dM.tolL=exp(-dM.tol); dM.tolH=exp(dM.tol);
+dM.ntype=ntype; dM.ncoef=ncoef;    
+dM.modspec=68; dM.yr=yr;      %diff cost coef for short-medium/long routes
+VM.iv1=IV1; VM.inv1=invA1; VM.iv2=IV2; VM.inv2=invA2;
+
+clear CarrID AA CO DL NW UA US WN OT B6
+clear fare* nconn time dist* hubdest ndestend hubconn tour slot nrout nocarr passorg passdest 
+clear adir data Cidx Mid Midx 
+clear dept_dir deptC s_jm temp* xiold 
+clear IV* deptIV FareIV connIV dirIV dept dist slotMC hubMC regjet SmMdDist LgDist
+
+%%%%%%% mex M40_MkSum.c
+
+tic
+[theta, fval,exitflag,output,laglamb,fgrad] = fmincon(@M130_gmmGredMM,theta0,...
+    A,b,[],[],lb,ub,[],options,XMat,VM,dM,0)
+                                            First-order      Norm of
+ Iter F-count            f(x)  Feasibility   optimality         step
+    0       1    1.948834e-01    0.000e+00    2.630e-03
+    1      14    1.948837e-01    0.000e+00    6.457e-03    1.236e-04
+    2      16    1.948838e-01    0.000e+00    2.277e-02    2.363e-04
+    3      23    1.948834e-01    0.000e+00    6.160e-03    1.415e-04
+    4      25    1.948838e-01    0.000e+00    8.382e-03    2.696e-04
+    5      28    1.948905e-01    0.000e+00    1.326e-02    2.893e-03
+    6      32    1.949028e-01    0.000e+00    4.726e-03    4.968e-03
+    7      34    1.949064e-01    0.000e+00    9.665e-03    3.622e-03
+    8      36    1.949096e-01    0.000e+00    7.205e-03    4.398e-03
+    9      37    1.949066e-01    0.000e+00    5.023e-03    8.853e-03
+   10      38    1.949153e-01    0.000e+00    2.600e-03    6.724e-03
+   11      39    1.949344e-01    0.000e+00    2.124e-03    1.234e-02
+   12      40    1.949547e-01    0.000e+00    4.451e-03    1.737e-02
+   13      41    1.949798e-01    0.000e+00    5.530e-03    2.817e-02
+   14      42    1.949909e-01    0.000e+00    3.638e-03    2.300e-02
+   15      43    1.949874e-01    0.000e+00    1.270e-03    1.081e-02
+   16      44    1.949812e-01    0.000e+00    1.395e-03    5.550e-03
+   17      45    1.949775e-01    0.000e+00    2.357e-03    7.335e-03
+   18      46    1.949810e-01    0.000e+00    2.291e-03    8.964e-03
+   19      47    1.949889e-01    0.000e+00    1.000e-03    7.656e-03
+   20      48    1.949008e-01    0.000e+00    2.132e-03    7.954e-02
+   21      49    1.948887e-01    0.000e+00    9.654e-04    2.352e-02
+   22      50    1.948883e-01    0.000e+00    5.372e-04    9.751e-04
+   23      51    1.948881e-01    0.000e+00    2.923e-04    2.242e-03
+   24      52    1.948882e-01    0.000e+00    3.669e-04    1.602e-03
+   25      53    1.948884e-01    0.000e+00    2.000e-04    2.016e-03
+   26      54    1.948831e-01    0.000e+00    9.918e-04    2.370e-02
+   27      55    1.948828e-01    0.000e+00    1.607e-04    2.636e-03
+   28      56    1.948827e-01    0.000e+00    3.762e-04    9.289e-04
+   29      57    1.948826e-01    0.000e+00    4.807e-04    1.144e-03
+   30      58    1.948826e-01    0.000e+00    3.417e-04    1.521e-03
+
+                                            First-order      Norm of
+ Iter F-count            f(x)  Feasibility   optimality         step
+   31      59    1.948826e-01    0.000e+00    9.595e-05    2.192e-03
+   32      60    1.948826e-01    0.000e+00    3.043e-04    2.295e-03
+   33      61    1.948825e-01    0.000e+00    4.172e-04    2.597e-03
+   34      62    1.948824e-01    0.000e+00    4.031e-04    2.987e-03
+   35      63    1.948822e-01    0.000e+00    1.948e-04    3.238e-03
+   36      64    1.948820e-01    0.000e+00    1.604e-04    2.663e-03
+   37      65    1.948819e-01    0.000e+00    2.091e-04    1.594e-03
+   38      66    1.948818e-01    0.000e+00    1.517e-04    9.069e-04
+   39      67    1.948818e-01    0.000e+00    5.385e-05    7.948e-04
+   40      68    1.948818e-01    0.000e+00    8.647e-05    7.905e-04
+   41      69    1.948818e-01    0.000e+00    1.108e-04    7.598e-04
+   42      70    1.948818e-01    0.000e+00    1.061e-04    8.892e-04
+   43      71    1.948817e-01    0.000e+00    7.135e-05    1.177e-03
+   44      72    1.948817e-01    0.000e+00    6.974e-05    1.374e-03
+   45      73    1.948816e-01    0.000e+00    9.744e-05    1.210e-03
+   46      74    1.948816e-01    0.000e+00    6.200e-05    8.456e-04
+   47      75    1.948816e-01    0.000e+00    4.000e-05    7.082e-04
+   48      76    1.948814e-01    0.000e+00    3.279e-04    4.267e-03
+   49      77    1.948813e-01    0.000e+00    1.541e-04    1.622e-03
+   50      78    1.948813e-01    0.000e+00    1.489e-04    1.186e-03
+   51      79    1.948812e-01    0.000e+00    4.614e-04    2.684e-03
+   52      80    1.948811e-01    0.000e+00    5.402e-04    3.557e-03
+   53      81    1.948811e-01    0.000e+00    3.062e-04    3.865e-03
+   54      82    1.948810e-01    0.000e+00    4.323e-05    2.377e-03
+   55      83    1.948810e-01    0.000e+00    2.116e-04    1.175e-03
+   56      84    1.948810e-01    0.000e+00    2.484e-04    5.547e-04
+   57      85    1.948810e-01    0.000e+00    1.379e-04    6.704e-04
+   58      86    1.948810e-01    0.000e+00    1.889e-05    6.658e-04
+   59      87    1.948810e-01    0.000e+00    9.227e-05    5.203e-04
+   60      88    1.948810e-01    0.000e+00    1.434e-04    4.610e-04
+
+                                            First-order      Norm of
+ Iter F-count            f(x)  Feasibility   optimality         step
+   61      89    1.948809e-01    0.000e+00    1.134e-04    4.044e-04
+   62      90    1.948809e-01    0.000e+00    4.077e-05    3.856e-04
+   63      91    1.948810e-01    0.000e+00    2.603e-05    2.510e-04
+   64      92    1.948810e-01    0.000e+00    4.533e-05    1.069e-04
+   65      93    1.948809e-01    0.000e+00    3.122e-05    9.061e-05
+   66      94    1.948809e-01    0.000e+00    8.000e-06    1.276e-04
+   67      95    1.948809e-01    0.000e+00    2.417e-05    1.024e-03
+   68      96    1.948809e-01    0.000e+00    4.246e-06    1.958e-04
+   69      97    1.948809e-01    0.000e+00    1.656e-05    5.805e-05
+   70      98    1.948809e-01    0.000e+00    3.508e-05    8.498e-05
+   71      99    1.948809e-01    0.000e+00    3.889e-05    1.161e-04
+   72     100    1.948809e-01    0.000e+00    2.462e-05    1.622e-04
+   73     101    1.948809e-01    0.000e+00    5.204e-06    1.177e-04
+   74     102    1.948809e-01    0.000e+00    5.921e-06    4.329e-05
+   75     103    1.948809e-01    0.000e+00    5.925e-06    1.006e-05
+   76     104    1.948809e-01    0.000e+00    4.243e-06    1.332e-05
+   77     105    1.948809e-01    0.000e+00    1.600e-06    1.891e-05
+   78     106    1.948809e-01    0.000e+00    3.964e-06    2.191e-04
+   79     107    1.948809e-01    0.000e+00    1.356e-06    3.352e-05
+   80     108    1.948809e-01    0.000e+00    8.258e-07    1.615e-05
+
+<a href = "matlab: helpview('optim','local_min_found','CSHelpWindow');">找到满足约束的局部最小值</a>。
+
+优化已完成，因为目标函数沿
+<a href = "matlab: helpview('optim','feasible_directions','CSHelpWindow');">可行方向</a>在<a href = "matlab: helpview('optim','optimality_tolerance_msgcsh','CSHelpWindow');">最优性容差</a>值范围内呈现非递减，
+并且在<a href = "matlab: helpview('optim','constraint_tolerance','CSHelpWindow');">约束容差</a>值范围内满足约束。
+
+<<a href = "matlab: createExitMsg({'optimlib:sqpLineSearch:Exit1basic'},{'optimlib:sqpLineSearch:Exit1detailed','8.257548e-07','1.000000e-06','0.000000e+00','1.000000e-06'},true,true);;">停止条件详细信息</a>>
+
+theta =
+
+      -0.9377
+     -0.59862
+      -6.0332
+    -0.093468
+     -0.55921
+      -8.9088
+      0.26721
+      0.11076
+      0.51141
+     -0.07749
+      0.39577
+      -0.1996
+     0.079332
+      0.45057
+     0.041774
+      -0.2193
+     0.095485
+     0.071498
+     0.075917
+      0.10964
+      0.99721
+      0.17593
+     0.090291
+       1.4002
+     0.050509
+     0.065614
+    -0.051089
+    0.0078788
+     -0.16268
+     -0.21248
+     -0.14768
+     -0.14001
+    -0.039943
+    -0.036618
+    -0.060271
+      -0.1359
+      0.74247
+      0.54926
+
+
+fval =
+
+      0.19488
+
+
+exitflag =
+
+     1
+
+
+output = 
+
+  包含以下字段的 <a href="matlab:helpPopup struct" style="font-weight:bold">struct</a>:
+
+         iterations: 80
+          funcCount: 108
+    constrviolation: 0
+           stepsize: 1.6152e-05
+          algorithm: 'interior-point'
+      firstorderopt: 8.2575e-07
+       cgiterations: 31
+            message: '找到满足约束的局部最小值。↵↵优化已完成，因为目标函数沿↵可行方向在最优性容差值范围内呈现非递减，↵并且在约束容差值范围内满足约束。↵↵<停止条件详细信息>↵↵优化已完成: 相对一阶最优性测度 8.257548e-07 ↵小于 options.OptimalityTolerance = 1.000000e-06 且相对最大约束违反值↵ 0.000000e+00 小于 options.ConstraintTolerance = 1.000000e-06。'
+       bestfeasible: [1×1 struct]
+
+
+laglamb = 
+
+  包含以下字段的 <a href="matlab:helpPopup struct" style="font-weight:bold">struct</a>:
+
+         eqlin: [0×1 double]
+      eqnonlin: [0×1 double]
+       ineqlin: [0×1 double]
+         lower: [38×1 double]
+         upper: [38×1 double]
+    ineqnonlin: [0×1 double]
+
+
+fgrad =
+
+   2.0609e-07
+  -4.0356e-07
+  -5.5753e-07
+  -2.5399e-06
+   1.8578e-07
+   7.5284e-07
+    3.636e-07
+  -4.4588e-07
+  -3.5689e-07
+   2.6747e-07
+   -2.579e-07
+  -4.5106e-07
+   3.8851e-09
+   1.7294e-08
+    2.102e-07
+   9.7319e-07
+    -1.96e-07
+  -2.5435e-07
+   2.0899e-07
+  -1.5077e-07
+   4.3551e-07
+  -3.5301e-07
+  -4.0994e-07
+   3.6322e-07
+   -5.352e-08
+  -7.5272e-07
+  -2.2501e-07
+   2.0313e-07
+   3.8079e-07
+    1.405e-07
+   3.0378e-07
+   1.0122e-07
+  -3.0612e-07
+  -3.4539e-08
+   -2.851e-07
+  -3.5696e-07
+  -4.9425e-07
+   6.2412e-08
+
+display('it takes fmincon ... minutes')
+it takes fmincon ... minutes
+comp_t = toc/60
+
+comp_t =
+
+       8.0411
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Variance of the parameter estimates
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+[VarT xi omeg] = M130_varMM(theta,XMat,VM,dM,0);
+disp('mean/std of xi')
+mean/std of xi
+[mean(xi) std(xi)]
+
+ans =
+
+  -9.7659e-08       1.0325
+
+disp('mean/std of omeg')
+mean/std of omeg
+[mean(omeg) std(omeg)]
+
+ans =
+
+  -3.9936e-07      0.99484
+
+
+disp('theta0, theta, std')
+theta0, theta, std
+[theta0 theta sqrt(diag(VarT))]
+
+ans =
+
+     -0.94268      -0.9377     0.012947
+     -0.60454     -0.59862     0.015042
+      -6.0081      -6.0332      0.12686
+    -0.093882    -0.093468   0.00098803
+     -0.55483     -0.55921     0.012077
+      -8.9177      -8.9088      0.14947
+      0.26724      0.26721    0.0098136
+      0.11058      0.11076    0.0018399
+      0.51202      0.51141     0.014244
+    -0.077589     -0.07749    0.0021201
+       0.3954      0.39577    0.0072347
+     -0.19971      -0.1996     0.003072
+     0.078437     0.079332     0.009754
+      0.44729      0.45057     0.025745
+     0.041253     0.041774    0.0093759
+     -0.21983      -0.2193     0.008154
+     0.095561     0.095485    0.0092638
+     0.070912     0.071498    0.0080882
+     0.075248     0.075917    0.0084734
+      0.10815      0.10964     0.010679
+       1.0068      0.99721     0.034603
+      0.17665      0.17593    0.0039377
+     0.081035     0.090291     0.024155
+       1.4077       1.4002     0.042939
+     0.051824     0.050509    0.0054042
+     0.053587     0.065614     0.027808
+    -0.050948    -0.051089     0.008785
+    0.0080267    0.0078788    0.0061204
+     -0.16616     -0.16268     0.013513
+     -0.22357     -0.21248     0.029319
+     -0.15144     -0.14768     0.011321
+     -0.14011     -0.14001    0.0088772
+    -0.040479    -0.039943    0.0097019
+    -0.039005    -0.036618    0.0096438
+     -0.06467    -0.060271     0.011336
+     -0.14106      -0.1359     0.016643
+      0.74256      0.74247    0.0031537
+      0.54467      0.54926     0.067241
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Obtain the optimal weight
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ng1=size(VM.iv1,2);
+ng2=size(VM.iv2,2);
+V1=zeros(ng1+ng2,ng1+ng2);
+for i=1:nobs
+    t1=VM.iv1(i,:)';
+    t2=VM.iv2(i,:)';
+    t=[xi(i)*t1;omeg(i)*t2];
+    V1=V1+t*t';
+end;
+V1=inv(V1/nobs);
+OptWt=V1;
+save M130_est theta* fval* exitflag* output* VarT* OptWt
+
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Part Six: second stage estimation
+% Theta=[const1, alpha1, layover1, ndest1, swjb1, time, dept, lcc, tour,
+% const2, alpha2,
+% layover2, ndest2, swjb2, cost_const, cost_dist, cost_layover, cost_lcc, spk_cost,spk_dist, lambda, gamma]
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+VM.OptWt=OptWt;
+tic
+[theta2, fval2,exitflag2,output2,laglamb2,fgrad2] = fmincon(@M130_gmmGredMM,theta,...
+    A,b,[],[],lb,ub,[],options,XMat,VM,dM,1)
+                                            First-order      Norm of
+ Iter F-count            f(x)  Feasibility   optimality         step
+    0       1    6.072171e+01    0.000e+00    1.777e+02
+    1      14    6.022454e+01    0.000e+00    4.492e+02    4.947e-03
+    2      16    5.992364e+01    0.000e+00    4.356e+02    3.789e-03
+    3      21    5.916845e+01    0.000e+00    2.789e+01    9.929e-03
+    4      29    5.913768e+01    0.000e+00    1.803e+02    2.496e-03
+    5      31    5.910483e+01    0.000e+00    9.631e+01    4.129e-03
+    6      36    5.897752e+01    0.000e+00    5.473e+01    1.043e-02
+    7      38    5.886473e+01    0.000e+00    9.365e+01    2.002e-02
+    8      44    5.882895e+01    0.000e+00    5.662e+01    1.744e-02
+    9      46    5.869910e+01    0.000e+00    5.266e+01    2.092e-02
+   10      53    5.851136e+01    0.000e+00    1.139e+01    1.027e-02
+   11      55    5.846944e+01    0.000e+00    2.724e+01    2.048e-02
+   12      60    5.846831e+01    0.000e+00    2.259e+01    4.404e-02
+   13      64    5.846153e+01    0.000e+00    1.133e+01    1.219e-02
+   14      69    5.842316e+01    0.000e+00    2.570e+01    2.327e-02
+   15      71    5.840055e+01    0.000e+00    1.695e+01    2.075e-02
+   16      76    5.834208e+01    0.000e+00    8.707e+00    4.954e-02
+   17      80    5.831550e+01    0.000e+00    1.420e+01    2.238e-02
+   18      85    5.829676e+01    0.000e+00    1.345e+01    5.445e-02
+   19      88    5.828711e+01    0.000e+00    6.309e+00    2.480e-02
+   20      93    5.824820e+01    0.000e+00    1.082e+01    5.597e-02
+   21      97    5.823374e+01    0.000e+00    2.044e+01    2.562e-02
+   22     102    5.823561e+01    0.000e+00    4.553e+00    4.993e-02
+   23     105    5.822404e+01    0.000e+00    9.213e+00    2.765e-02
+   24     110    5.821122e+01    0.000e+00    3.405e+01    5.255e-02
+   25     113    5.820042e+01    0.000e+00    4.088e+01    2.523e-02
+   26     119    5.816037e+01    0.000e+00    3.380e+00    2.430e-02
+   27     123    5.815675e+01    0.000e+00    6.089e+00    1.320e-02
+   28     128    5.815489e+01    0.000e+00    1.261e+01    2.952e-02
+   29     130    5.815281e+01    0.000e+00    1.831e+01    5.694e-02
+   30     137    5.814051e+01    0.000e+00    1.409e+01    2.322e-02
+
+                                            First-order      Norm of
+ Iter F-count            f(x)  Feasibility   optimality         step
+   31     141    5.814012e+01    0.000e+00    1.427e+01    1.122e-02
+   32     146    5.813782e+01    0.000e+00    1.414e+00    2.463e-02
+   33     149    5.813503e+01    0.000e+00    7.618e+00    1.295e-02
+   34     155    5.812821e+01    0.000e+00    9.727e+00    1.205e-02
+   35     158    5.812742e+01    0.000e+00    8.378e+00    1.405e-02
+   36     163    5.812675e+01    0.000e+00    1.300e+01    2.742e-02
+   37     166    5.812640e+01    0.000e+00    1.253e+01    1.454e-02
+   38     170    5.812467e+01    0.000e+00    5.892e+00    2.488e-02
+   39     177    5.812041e+01    0.000e+00    7.274e+00    1.075e-02
+   40     180    5.811976e+01    0.000e+00    2.838e+00    1.015e-02
+   41     186    5.811954e+01    0.000e+00    3.390e+00    1.140e-02
+   42     189    5.811937e+01    0.000e+00    2.077e+00    6.034e-03
+   43     194    5.811865e+01    0.000e+00    4.295e+00    1.097e-02
+   44     196    5.811764e+01    0.000e+00    1.159e+00    1.026e-02
+   45     202    5.811694e+01    0.000e+00    1.381e+00    1.108e-02
+   46     206    5.811771e+01    0.000e+00    2.613e+00    5.693e-03
+   47     210    5.811732e+01    0.000e+00    1.676e+00    7.768e-03
+   48     216    5.811665e+01    0.000e+00    4.201e+00    5.972e-03
+   49     219    5.811654e+01    0.000e+00    2.157e+00    3.230e-03
+   50     223    5.811607e+01    0.000e+00    1.557e+00    9.509e-03
+   51     231    5.811609e+01    0.000e+00    2.660e-01    2.021e-03
+   52     241    5.811518e+01    0.000e+00    1.063e+00    6.515e-03
+   53     244    5.811453e+01    0.000e+00    2.649e+00    6.781e-03
+   54     250    5.811379e+01    0.000e+00    1.339e+00    6.249e-03
+   55     252    5.811341e+01    0.000e+00    2.791e+00    1.394e-02
+   56     259    5.811313e+01    0.000e+00    5.287e-01    6.533e-03
+   57     261    5.811322e+01    0.000e+00    1.134e+00    6.629e-03
+   58     265    5.811332e+01    0.000e+00    6.608e-01    8.713e-03
+   59     268    5.811318e+01    0.000e+00    1.481e+00    7.147e-03
+   60     276    5.811312e+01    0.000e+00    3.724e-01    1.658e-03
+
+                                            First-order      Norm of
+ Iter F-count            f(x)  Feasibility   optimality         step
+   61     278    5.811290e+01    0.000e+00    8.304e-01    3.351e-03
+   62     281    5.811285e+01    0.000e+00    5.757e+00    5.143e-03
+   63     283    5.811276e+01    0.000e+00    5.024e+00    4.179e-03
+   64     287    5.811266e+01    0.000e+00    2.298e+00    4.238e-03
+   65     290    5.811259e+01    0.000e+00    1.661e+00    4.060e-03
+   66     293    5.811259e+01    0.000e+00    2.302e+00    2.454e-03
+   67     295    5.811265e+01    0.000e+00    1.849e+00    5.608e-03
+   68     297    5.811267e+01    0.000e+00    1.578e+00    5.123e-03
+   69     298    5.811251e+01    0.000e+00    1.678e+00    8.210e-03
+   70     299    5.811248e+01    0.000e+00    4.943e-01    3.900e-03
+   71     300    5.811251e+01    0.000e+00    1.333e+00    4.781e-03
+   72     302    5.811250e+01    0.000e+00    4.936e-01    2.665e-03
+   73     303    5.811246e+01    0.000e+00    1.397e-01    2.521e-03
+   74     304    5.811247e+01    0.000e+00    3.165e-02    3.935e-04
+   75     305    5.811247e+01    0.000e+00    2.754e-02    1.321e-04
+   76     306    5.811247e+01    0.000e+00    2.648e-02    1.177e-04
+   77     307    5.811247e+01    0.000e+00    2.000e-02    1.412e-04
+   78     308    5.811235e+01    0.000e+00    6.981e-02    6.341e-03
+   79     309    5.811235e+01    0.000e+00    6.809e-02    2.696e-04
+   80     310    5.811235e+01    0.000e+00    1.423e-02    1.660e-04
+   81     311    5.811235e+01    0.000e+00    4.000e-03    2.181e-05
+   82     312    5.811234e+01    0.000e+00    4.029e-03    1.332e-03
+   83     313    5.811234e+01    0.000e+00    8.000e-04    1.452e-05
+   84     314    5.811234e+01    0.000e+00    2.004e-04    3.314e-04
+   85     315    5.811234e+01    0.000e+00    8.586e-05    1.795e-06
+   86     316    5.811234e+01    0.000e+00    8.000e-06    7.969e-07
+   87     317    5.811234e+01    0.000e+00    4.442e-06    2.668e-06
+   88     321    5.811234e+01    0.000e+00    3.851e-06    1.869e-09
+   89     325    5.811234e+01    0.000e+00    3.339e-06    1.649e-09
+   90     331    5.811234e+01    0.000e+00    1.553e-06    1.238e-09
+
+<a href = "matlab: helpview('optim','local_min_poss_with_constr','CSHelpWindow');">可能存在局部最小值。满足约束</a>。
+
+fmincon 已停止，因为<a href = "matlab: helpview('optim','norm_curr_step_simple_fminconip','CSHelpWindow');">当前步长</a>小于
+<a href = "matlab: helpview('optim','step_size_tol','CSHelpWindow');">步长容差</a>值并且在<a href = "matlab: helpview('optim','constraint_tolerance','CSHelpWindow');">约束容差</a>值范围内满足约束。
+
+<<a href = "matlab: createExitMsg({'optimlib:sqpLineSearch:Exit2basic','fmincon'},{'optimlib:sqpLineSearch:Exit2detailed','1.000000e-10','0.000000e+00','1.000000e-06'},true,true);;">停止条件详细信息</a>>
+
+theta2 =
+
+      -1.0529
+     -0.59431
+       -5.681
+     -0.10177
+     -0.50347
+      -8.6067
+      0.26894
+      0.10611
+      0.52614
+    -0.080425
+      0.35895
+     -0.18395
+     0.061685
+      0.38534
+     0.067566
+     -0.21398
+     0.069881
+     0.082528
+     0.055612
+      0.08231
+       1.1675
+      0.19274
+     0.056456
+       1.5915
+     0.041722
+     0.054511
+    -0.048577
+     0.028451
+     -0.22413
+     -0.32223
+      -0.1891
+     -0.14466
+    -0.038143
+    -0.059676
+     -0.11274
+     -0.19759
+      0.72352
+      0.62735
+
+
+fval2 =
+
+       58.112
+
+
+exitflag2 =
+
+     2
+
+
+output2 = 
+
+  包含以下字段的 <a href="matlab:helpPopup struct" style="font-weight:bold">struct</a>:
+
+         iterations: 91
+          funcCount: 347
+    constrviolation: 0
+           stepsize: 1.849e-10
+          algorithm: 'interior-point'
+      firstorderopt: 1.5525e-06
+       cgiterations: 675
+            message: '可能存在局部最小值。满足约束。↵↵fmincon 已停止，因为当前步长小于↵步长容差值并且在约束容差值范围内满足约束。↵↵<停止条件详细信息>↵↵优化已停止，因为 x 的所有元素的相对变化↵小于 options.StepTolerance = 1.000000e-10，↵并且相对最大约束违反值 0.000000e+00 小于 options.ConstraintTolerance = 1.000000e-06。'
+       bestfeasible: [1×1 struct]
+
+
+laglamb2 = 
+
+  包含以下字段的 <a href="matlab:helpPopup struct" style="font-weight:bold">struct</a>:
+
+         eqlin: [0×1 double]
+      eqnonlin: [0×1 double]
+       ineqlin: [0×1 double]
+         lower: [38×1 double]
+         upper: [38×1 double]
+    ineqnonlin: [0×1 double]
+
+
+fgrad2 =
+
+  -7.2056e-07
+  -2.0304e-06
+  -8.9961e-08
+  -1.5582e-05
+  -2.5854e-06
+   9.0323e-07
+  -1.4599e-06
+  -3.3072e-06
+  -2.8194e-06
+  -2.0568e-06
+  -1.8414e-06
+  -4.7846e-06
+  -2.1999e-07
+  -1.4585e-06
+  -2.2102e-07
+   7.1019e-07
+  -2.2754e-07
+  -2.4468e-07
+  -1.9396e-07
+  -2.7862e-07
+   -1.438e-07
+  -6.2918e-07
+  -1.8402e-07
+  -4.9247e-08
+  -1.7035e-07
+   -2.107e-07
+   1.5081e-07
+  -9.6223e-08
+   7.7101e-07
+    1.152e-06
+   6.2489e-07
+   4.5647e-07
+   1.0974e-07
+   1.7805e-07
+   3.6217e-07
+   6.8818e-07
+  -4.6783e-06
+  -2.4105e-06
+
+display('it takes fmincon ... minutes')
+it takes fmincon ... minutes
+comp_t2 = toc/60
+
+comp_t2 =
+
+       25.522
+
+
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Variance of the parameter estimates
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+dM.modspec=50;
+[VarT2 xi2 omeg2] = M150_varMkDep(theta2,XMat,VM,dM);
+disp('mean/std of xi2')
+mean/std of xi2
+[mean(xi2) std(xi2)]
+
+ans =
+
+    -0.042573       1.0621
+
+disp('mean/std of omeg2')
+mean/std of omeg2
+[mean(omeg2) std(omeg2)]
+
+ans =
+
+    0.0011552       1.0867
+
+disp('theta, theta2, std2')
+theta, theta2, std2
+[theta theta2 sqrt(diag(VarT2))]
+
+ans =
+
+      -0.9377      -1.0529     0.030431
+     -0.59862     -0.59431     0.026357
+      -6.0332       -5.681      0.19311
+    -0.093468     -0.10177     0.001449
+     -0.55921     -0.50347     0.020355
+      -8.9088      -8.6067      0.29821
+      0.26721      0.26894     0.021698
+      0.11076      0.10611    0.0044346
+      0.51141      0.52614     0.040768
+     -0.07749    -0.080425    0.0063331
+      0.39577      0.35895     0.032991
+      -0.1996     -0.18395    0.0085376
+     0.079332     0.061685      0.02281
+      0.45057      0.38534     0.060907
+     0.041774     0.067566     0.020034
+      -0.2193     -0.21398     0.017187
+     0.095485     0.069881     0.022482
+     0.071498     0.082528     0.016892
+     0.075917     0.055612     0.019492
+      0.10964      0.08231     0.022403
+      0.99721       1.1675     0.057675
+      0.17593      0.19274    0.0064673
+     0.090291     0.056456     0.037062
+       1.4002       1.5915      0.06892
+     0.050509     0.041722    0.0072242
+     0.065614     0.054511     0.042289
+    -0.051089    -0.048577     0.010896
+    0.0078788     0.028451    0.0075144
+     -0.16268     -0.22413     0.015737
+     -0.21248     -0.32223     0.041316
+     -0.14768      -0.1891      0.01374
+     -0.14001     -0.14466     0.010094
+    -0.039943    -0.038143     0.010963
+    -0.036618    -0.059676     0.010848
+    -0.060271     -0.11274     0.014349
+      -0.1359     -0.19759     0.020639
+      0.74247      0.72352    0.0071936
+      0.54926      0.62735       0.1134
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Save results
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+save M130_est theta* fval* exitflag* output* lag* fgrad* VarT* OptWt out* xi2 omeg2
+diary off
