@@ -6,7 +6,8 @@ Tong Li </p>
 tong.li1@sciencespo.fr
 </p>
 
-==code used in this file are all uploaded via github==
+==relevant code used in this file are all uploaded via github link below:==
+https://github.com/Tli2023/IO_validation_project/tree/main
 #### A brief summary of the paper
 Berry and Jia (2010) use avian-data from 8 legacy carriers and lcc(new comers) in 1999 and 2006 trying to provide an answer to a puzzle where they witness air tranportion indsutry booms with increasing profits, but individually, each legacy carriers was going through financial distress. 
 
@@ -66,32 +67,7 @@ We can see the difference between first stage and second stage are in **theta** 
 
 PS. The replication is shown under the diary file, named as M130_est_tong.txt
 
-#### Part 2a: modification on the nested logit model: 
-One of the major assumption would be the nested-logit model, we will try to break this assumption by assuming when $\lambda = 1$ in the market share equation, which deduced the model into a multinominal logit. 
-```matlab
-% we first modify the market share equation, which set lambda = 1
-function sH=M75_sh(dM)
-lamb=1;
-grpsh=(tsum.^lamb)./(1+tsum.^lamb);
-```
-We are not able to fully remove lambda from all estimation, as the fmincon will be reporting errors
-
-Futhermore, we set all functions under that could be called under @M130_gmmGredMM with dM.lambda=1; 
-
-
-|                | logit parameters| standard deviation  |
-|----------------------|-----------|------------|
-| fare traveler        | -0.57503  | 0.020271   |
-| traveler connection  | -0.90787  | 0.019941   |
-| traveler constant    | -8.057    | 0.090243   |
-| fare business        | -0.084046 | 0.0021379  |
-| business connection  | -0.43188  | 0.0084406  |
-| business constant    | -8.7977   | 0.064208   |
-
-
-We confirm that the author's finding on change in demand side is robust under a multinominal logit, as we do see an aversion towards connecting flights for both types of consumers and they are have been sensitive to price changes. The detailed modification can read through the diary file:  M130_est_logit_modification.txt
-
-#### Part 2b: modification on demand relative to flight distance:
+#### Part 2a: modification on demand relative to flight distance:
 
 The authors assumed the demand is decreasing with distance, however, we believed that there should be a kinked-demand curve for long distance haul, as there are no substitutes for long distance travel besides flight especially at the year of 1999. Therefore, the demand should be increasing with distance passing a certain benchmark.
 
@@ -147,23 +123,54 @@ IV2=[...,...
 we changed the supply side iv, LgDist is the medium long haul, and LLgDist is the haul over 2500mi and we added 2 interactive term between distance and long-hauls.
 
 The results are stated as follows: 
-|  | parameters | standard deviation   |
-|-----------|-----------|-------------|
-| fare traveler | -0.49847  | 0.0048799   |
-| traveler connection | -0.47229  | 0.007617    |
-| traveler constant    | -7.0051   | 0.098675    |
-| fare business | -0.056131 | 0.00059865  |
-| business connection | -0.35603  | 0.0076917   |
-| business constant | -8.4392   | 0.12428     |
+|             | parameters      | standard deviation |
+|----------------------|-----------------|--------------------|
+| fare traveler        | -0.49579        | 0.0047782          |
+| traveler connection  | -0.47541        | 0.0075125          |
+| traveler constant    | -7.2677         | 0.10471            |
+| fare business        | -0.055493       | 0.00059408         |
+| business connection  | -0.35955        | 0.0076531          |
+| business constant    | -8.7049         | 0.14501            |
 
-Our assumption that demand is inelastic with distance for business consumer, is approximated true. As we find the business consumer's elasticity of demand does fall in between 0 and 1 ==|-0.056131|==, and this is statistically significant. Notice that the original model finds ==|-0.07|==, is also inelastic in increase in fare, but with distance we do see the inelastic-ness increases with distance; 
+
+Our assumption that demand is inelastic with distance for business consumer, is approximated true. As we find the business consumer's elasticity of demand does fall in between 0 and 1 ==|-0.055493|==, and this is statistically significant. Notice that the original model finds ==|-0.07|==, is also inelastic in increase in fare, but with distance we do see the inelasticness increases with distance; 
 
 Furthermore, when we see the parameters for distance:
 |  | parameters  | standard deviation   |
 |-----------|-----------|------------|
-| distance | 0.033122  | 0.037668   |
-| distance squared | -0.017254 | 0.0061622  |
+| Distance   | 0.23122   | 0.039485   |
+| Distance squared| -0.065983 | 0.008577   |
+| Distance x 1500mi-2500mi | 0.072326  | 0.011547   |
+| Distance x 2500mi and above| 0.097409  | 0.019231   |
 
-Compared with the original model, where distance and distance squared are 0.3 and -0.05 respectively, our modification shows that the elasticity does reduce with distance. 
 
-The complete modification is shown under the diary file: P130_distance.txt 
+Compared to the original model, where distance and distance squared are 0.3 and -0.05 respectively, our modification shows that the elasticity does reduce with distance. 
+
+Furthermore, by looking at the specific interactive terms, we do find the demand is increasing with distance, this confirms our hypothesis of the existance of kinked demand for long-haul flights which have no substitute. 
+
+The complete modification is shown under the diary file: P130_distance.txt on github. 
+
+#### Part 2b: modification on the nested logit model: 
+One of the major assumption would be the nested-logit model, we will try to break this assumption by assuming when $\lambda = 1$ in the market share equation, which deduced the model into a multinominal logit. 
+```matlab
+% we first modify the market share equation, which set lambda = 1
+function sH=M75_sh(dM)
+lamb=1;
+grpsh=(tsum.^lamb)./(1+tsum.^lamb);
+```
+We are not able to fully remove lambda from all estimation, as the fmincon will be reporting errors
+
+Futhermore, we set all functions under that could be called under @M130_gmmGredMM with dM.lambda=1; 
+
+
+|                | logit parameters| standard deviation  |
+|----------------------|-----------|------------|
+| fare traveler        | -0.57503  | 0.020271   |
+| traveler connection  | -0.90787  | 0.019941   |
+| traveler constant    | -8.057    | 0.090243   |
+| fare business        | -0.084046 | 0.0021379  |
+| business connection  | -0.43188  | 0.0084406  |
+| business constant    | -8.7977   | 0.064208   |
+
+
+We confirm that the author's finding on change in demand side is robust under a multinominal logit, as we do see an aversion towards connecting flights for both types of consumers and they are have been sensitive to price changes. The detailed modification can read through the diary file:  M130_est_logit_modification.txt
